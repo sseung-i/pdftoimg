@@ -31,10 +31,11 @@ export default function PdfToImage() {
   const [viewingIndex, setViewingIndex] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const currentFileRef = useRef<File | null>(null);
 
   const processPdf = useCallback(async (file: File, renderQuality: Quality) => {
     if (!file || file.type !== "application/pdf") {
-      alert("Please upload a valid PDF file.");
+      alert("올바른 PDF 파일을 업로드해주세요.");
       return;
     }
 
@@ -82,7 +83,7 @@ export default function PdfToImage() {
       setSelected(new Set(pagesData.map((p) => p.pageNumber)));
     } catch (err) {
       console.error(err);
-      alert("Failed to process PDF. Please try again.");
+      alert("PDF 처리에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setLoading(false);
     }
@@ -90,7 +91,7 @@ export default function PdfToImage() {
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) processPdf(file, quality);
+    if (file) { currentFileRef.current = file; processPdf(file, quality); }
     e.target.value = "";
   };
 
@@ -98,7 +99,12 @@ export default function PdfToImage() {
     e.preventDefault();
     setDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) processPdf(file, quality);
+    if (file) { currentFileRef.current = file; processPdf(file, quality); }
+  };
+
+  const changeQuality = (q: Quality) => {
+    setQuality(q);
+    if (currentFileRef.current) processPdf(currentFileRef.current, q);
   };
 
   const togglePage = (pageNumber: number) => {
@@ -146,7 +152,7 @@ export default function PdfToImage() {
   const downloadSelected = async () => {
     const toDownload = pages.filter((p) => selected.has(p.pageNumber));
     if (toDownload.length === 0) {
-      alert("No pages selected.");
+      alert("페이지를 선택해주세요.");
       return;
     }
 
@@ -197,7 +203,7 @@ export default function PdfToImage() {
       }
     } catch (err) {
       console.error(err);
-      alert("Download failed. Please try again.");
+      alert("다운로드에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setDownloading(false);
     }
@@ -206,19 +212,11 @@ export default function PdfToImage() {
   const viewingPage = viewingIndex !== null ? pages[viewingIndex] : null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <h1 className="text-2xl font-bold text-gray-900">PDF to Image</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Convert PDF pages to PNG or JPG — 100% in your browser, no upload needed.
-        </p>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-6 py-8">
+    <>
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
         {/* Upload area */}
         <div
-          className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-colors ${
+          className={`relative border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-colors ${
             dragging
               ? "border-blue-500 bg-blue-50"
               : "border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50/30"
@@ -257,47 +255,21 @@ export default function PdfToImage() {
                 <>
                   <p className="text-base font-semibold text-gray-700">{fileName}</p>
                   <p className="text-sm text-gray-400 mt-1">
-                    {pages.length} pages · Click or drop to replace
+                    {pages.length}페이지 · 클릭하거나 드롭해서 교체
                   </p>
                 </>
               ) : (
                 <>
                   <p className="text-base font-semibold text-gray-700">
-                    Drop a PDF here or click to browse
+                    PDF를 드롭하거나 클릭해서 업로드
                   </p>
-                  <p className="text-sm text-gray-400 mt-1">Supports any PDF file</p>
+                  <p className="text-sm text-gray-400 mt-1">모든 PDF 파일 지원</p>
                 </>
               )}
             </div>
           </div>
         </div>
 
-        {/* Quality selector — only before upload */}
-        {pages.length === 0 && !loading && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-500">Quality:</span>
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 bg-white">
-              {(["low", "medium", "high"] as Quality[]).map((q) => (
-                <button
-                  key={q}
-                  onClick={() => setQuality(q)}
-                  className={`px-3 py-1 text-xs font-medium transition-colors capitalize ${
-                    quality === q
-                      ? "bg-blue-500 text-white"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-            <span className="text-xs text-gray-400">
-              {quality === "low" && "빠름 · 화면 표시용"}
-              {quality === "medium" && "권장 · 레티나 수준"}
-              {quality === "high" && "고화질 · 인쇄용"}
-            </span>
-          </div>
-        )}
 
         {/* Loading progress */}
         {loading && (
@@ -307,7 +279,7 @@ export default function PdfToImage() {
                 {fileName && (
                   <span className="text-gray-400 mr-2">{fileName}</span>
                 )}
-                Rendering pages...
+                페이지 렌더링 중...
               </span>
               <span className="text-sm text-gray-500">
                 {loadingProgress.current} / {loadingProgress.total}
@@ -329,26 +301,51 @@ export default function PdfToImage() {
 
         {/* Controls */}
         {pages.length > 0 && !loading && (
-          <div className="mt-6 bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-4">
+          <div className="mt-6 bg-white rounded-xl border border-gray-200 p-3 sm:p-4 flex flex-wrap items-center gap-3">
             <div className="flex gap-2">
               <button
                 onClick={selectAll}
                 className="px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
               >
-                Select All
+                전체 선택
               </button>
               <button
                 onClick={deselectAll}
                 className="px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
               >
-                Deselect All
+                전체 해제
               </button>
             </div>
 
             <div className="h-6 w-px bg-gray-200" />
 
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Format:</span>
+              <span className="text-sm font-medium text-gray-700">화질:</span>
+              <div className="flex rounded-lg overflow-hidden border border-gray-200">
+                {([
+                  { key: "low", label: "낮음" },
+                  { key: "medium", label: "보통" },
+                  { key: "high", label: "높음" },
+                ] as { key: Quality; label: string }[]).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => changeQuality(key)}
+                    className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                      quality === key
+                        ? "bg-blue-500 text-white"
+                        : "bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="h-6 w-px bg-gray-200" />
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">형식:</span>
               <div className="flex rounded-lg overflow-hidden border border-gray-200">
                 {(["png", "jpeg"] as Format[]).map((f) => (
                   <button
@@ -394,7 +391,7 @@ export default function PdfToImage() {
                       d="M4 12a8 8 0 018-8v8H4z"
                     />
                   </svg>
-                  Preparing...
+                  준비 중...
                 </>
               ) : (
                 <>
@@ -406,7 +403,7 @@ export default function PdfToImage() {
                       d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                     />
                   </svg>
-                  Download {selected.size} page{selected.size !== 1 ? "s" : ""}
+                  <span className="hidden sm:inline">{selected.size}페이지 </span>다운로드
                   {selected.size > 1 ? " (ZIP)" : ` (.${format === "jpeg" ? "jpg" : "png"})`}
                 </>
               )}
@@ -416,7 +413,7 @@ export default function PdfToImage() {
 
         {/* Thumbnail grid */}
         {pages.length > 0 && !loading && (
-          <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
             {pages.map((page, index) => {
               const isSelected = selected.has(page.pageNumber);
               return (
@@ -524,7 +521,7 @@ export default function PdfToImage() {
                 onClick={() => setZoom(1)}
                 className="text-xs px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
               >
-                Reset
+                초기화
               </button>
             </div>
 
@@ -581,6 +578,6 @@ export default function PdfToImage() {
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }

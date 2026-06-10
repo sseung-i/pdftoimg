@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PDF to Image",
-  description: "Convert PDF pages to PNG or JPG — 100% in your browser",
+  title: "PDF Tools",
+  description: "PDF ↔ Image conversion, 100% in your browser",
 };
 
 export default function RootLayout({
